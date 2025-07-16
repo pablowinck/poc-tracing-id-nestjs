@@ -1,25 +1,25 @@
 import { Injectable } from '@nestjs/common';
-import { CustomLoggerService } from './tracing/custom-logger.service';
+import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class AppService {
-  constructor(private readonly logger: CustomLoggerService) {}
+  private readonly logger = new Logger(AppService.name);
 
   getHello(): string {
-    this.logger.log('Processing hello request', 'AppService');
+    this.logger.log('Processing hello request');
     const message = 'Hello world';
-    this.logger.log(`Returning message: ${message}`, 'AppService');
+    this.logger.log(`Returning message: ${message}`);
     return message;
   }
 
   getHealthCheck(): object {
-    this.logger.log('Health check requested', 'AppService');
+    this.logger.log('Health check requested');
     const health = {
       status: 'ok',
       timestamp: new Date().toISOString(),
       service: 'poc-tracing-nestjs',
     };
-    this.logger.log('Health check completed successfully', 'AppService');
+    this.logger.log('Health check completed successfully');
     return health;
   }
 }
