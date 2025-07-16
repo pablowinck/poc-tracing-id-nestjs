@@ -52,31 +52,180 @@ src/
 # Clone o repositório
 git clone <repo-url>
 cd poc-tracing-id-nestjs
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
 
-## Resources
+# Instale as dependências
+pnpm install
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+### Executando a Aplicação
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```bash
+# Modo desenvolvimento
+pnpm run start:dev
 
-## Support
+# Modo produção
+pnpm run build
+pnpm run start:prod
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+A aplicação estará disponível em `http://localhost:3000`
 
-## Stay in touch
+### Endpoints Disponíveis
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+| Método | Endpoint  | Descrição                    |
+|--------|-----------|------------------------------|
+| GET    | `/`       | Endpoint básico              |
+| GET    | `/hello`  | Endpoint com logs detalhados |
+| GET    | `/health` | Health check                 |
 
-## License
+## 🧪 Testando o Tracing ID
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+### 1. Requisição sem Correlation ID
+
+```bash
+curl -X GET http://localhost:3000/hello
+```
+
+**Resultado:**
+- Um novo UUID será gerado automaticamente
+- Logs mostrarão o tracing ID gerado
+- Response incluirá header `x-correlation-id`
+
+### 2. Requisição com Correlation ID
+
+```bash
+curl -X GET http://localhost:3000/hello \
+  -H "x-correlation-id: my-custom-trace-123"
+```
+
+**Resultado:**
+- O ID fornecido será utilizado
+- Todos os logs utilizarão `my-custom-trace-123`
+- Response retornará o mesmo ID no header
+
+### 3. Formato dos Logs
+
+Todos os logs seguem o padrão:
+
+```
+2024-07-16T20:01:22.123Z - [trace-id-uuid] - ClassName - Mensagem do log
+```
+
+**Exemplo:**
+```
+2024-07-16T20:01:22.123Z - [f47ac10b-58cc-4372-a567-0e02b2c3d479] - AppController - Received request for GET /hello
+2024-07-16T20:01:22.125Z - [f47ac10b-58cc-4372-a567-0e02b2c3d479] - AppService - Processing hello request
+2024-07-16T20:01:22.127Z - [f47ac10b-58cc-4372-a567-0e02b2c3d479] - AppController - Successfully processed hello request
+```
+
+## 💡 Implementação Detalhada
+
+### TracingMiddleware
+
+```typescript
+@Injectable()
+export class TracingMiddleware implements NestMiddleware {
+  use(req: Request, res: Response, next: NextFunction) {
+    // Captura ou gera tracing ID
+    const tracingId = req.headers['x-correlation-id'] || uuidv4();
+    
+    // Adiciona ao response header
+    res.setHeader('x-correlation-id', tracingId);
+    
+    // Executa dentro do contexto
+    this.tracingContextService.run(tracingId, () => {
+      next();
+    });
+  }
+}
+```
+
+### TracingContextService
+
+```typescript
+@Injectable()
+export class TracingContextService {
+  private readonly asyncLocalStorage = new AsyncLocalStorage<TracingContext>();
+
+  run<T>(tracingId: string, callback: () => T): T {
+    return this.asyncLocalStorage.run({ tracingId }, callback);
+  }
+
+  getTracingId(): string | undefined {
+    return this.asyncLocalStorage.getStore()?.tracingId;
+  }
+}
+```
+
+### CustomLoggerService
+
+```typescript
+@Injectable()
+export class CustomLoggerService implements LoggerService {
+  private formatMessage(message: string, context?: string): string {
+    const timestamp = new Date().toISOString();
+    const tracingId = this.tracingContextService.getTracingId() || 'no-tracing-id';
+    const className = context || 'Application';
+    
+    return `${timestamp} - [${tracingId}] - ${className} - ${message}`;
+  }
+}
+```
+
+## 🔧 Scripts Disponíveis
+
+```bash
+# Desenvolvimento
+pnpm run start:dev      # Inicia em modo watch
+pnpm run start:debug    # Inicia com debug
+
+# Build e Produção
+pnpm run build          # Compila o projeto
+pnpm run start:prod     # Inicia versão de produção
+
+# Testes
+pnpm run test           # Executa testes unitários
+pnpm run test:watch     # Testes em modo watch
+pnpm run test:cov       # Testes com coverage
+pnpm run test:e2e       # Testes end-to-end
+
+# Qualidade de Código
+pnpm run lint           # Executa ESLint
+pnpm run format         # Executa Prettier
+```
+
+## 🎯 Casos de Uso
+
+### 1. Microserviços
+- Propagação de tracing ID entre serviços
+- Rastreamento de transações distribuídas
+- Debugging em arquiteturas complexas
+
+### 2. Observabilidade
+- Correlação de logs em sistemas distribuídos
+- Métricas por transação
+- Análise de performance por request
+
+### 3. Debugging
+- Isolamento de problemas específicos
+- Rastreamento de erros end-to-end
+- Análise de fluxo de execução
+
+## 🚀 Próximos Passos
+
+- [ ] Integração com APM tools (New Relic, Datadog)
+- [ ] Propagação automática em requisições HTTP externas
+- [ ] Métricas e traces com OpenTelemetry
+- [ ] Exemplo de integração com banco de dados
+- [ ] Middleware para GraphQL
+
+## 📚 Referências
+
+- [AsyncLocalStorage - Node.js](https://nodejs.org/api/async_hooks.html#asynclocalstorage)
+- [NestJS Middleware](https://docs.nestjs.com/middleware)
+- [Correlation ID Pattern](https://microservices.io/patterns/observability/correlation-id.html)
+- [Distributed Tracing](https://microservices.io/patterns/observability/distributed-tracing.html)
+
+---
+
+**Desenvolvido com ❤️ para demonstrar padrões de observabilidade em Node.js**
