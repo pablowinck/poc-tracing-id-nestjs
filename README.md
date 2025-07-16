@@ -211,14 +211,6 @@ pnpm run format         # Executa Prettier
 - Rastreamento de erros end-to-end
 - Análise de fluxo de execução
 
-## 🚀 Próximos Passos
-
-- [ ] Integração com APM tools (New Relic, Datadog)
-- [ ] Propagação automática em requisições HTTP externas
-- [ ] Métricas e traces com OpenTelemetry
-- [ ] Exemplo de integração com banco de dados
-- [ ] Middleware para GraphQL
-
 ## 📚 Referências
 
 - [AsyncLocalStorage - Node.js](https://nodejs.org/api/async_hooks.html#asynclocalstorage)
